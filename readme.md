@@ -7,3 +7,10 @@ This project is a part of 2024/2025 Summer Semester course in Deeplearning at Wa
 ## Dataset
 
 The dataset can be found [here](https://www.kaggle.com/datasets/borhanitrash/cat-dataset).
+
+## Dependencies
+
+```{bash}
+pip install torch
+
+```
