@@ -6,7 +6,13 @@ import torch.nn as nn
 class EncoderConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, downsample = True):
         super(EncoderConvBlock, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1)
+        self.conv = nn.Conv2d(
+            in_channels = in_channels, 
+            out_channels = out_channels, 
+            kernel_size=3, 
+            stride=2, 
+            padding=1)
+        
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU()
         self.downsample = downsample
@@ -29,24 +35,23 @@ class Encoder(nn.Module):
         self.blocks = nn.Sequential(
             *[
                 EncoderConvBlock(
-                    dimension_list[i][0], 
-                    dimension_list[i+1][0], 
-                    downsample = dimension_list[i + 1][1] < dimension_list[i][1]
-                ) for i in range(len(dimension_list) - 1)
+                    in_channels = self.dimension_list[i][0], 
+                    out_channels = self.dimension_list[i+1][0], 
+                    downsample = self.dimension_list[i + 1][1] < self.dimension_list[i][1]
+                ) for i in range(len(self.dimension_list) - 1)
             ]
         )
-        self.fc_mu = nn.Linear(self.dimension_list[-1][0] * self.dimension_list[-1][1] * self.dimension_list[-1][1], latent_dim)
-        self.fc_logvar = nn.Linear(self.dimension_list[-1][0] * self.dimension_list[-1][1] * self.dimension_list[-1][1], latent_dim)
+        self.fc_mu = nn.LazyLinear(latent_dim)
+        self.fc_logvar = nn.LazyLinear(latent_dim)
 
     def forward(self, x):
         for block in self.blocks:
+            print(x.shape)
             x = block(x)
         x = nn.Flatten()(x)
         mu = self.fc_mu(x)
         logvar = self.fc_logvar(x)
         return mu, logvar
-    
-
 
 
 class DecoderConvBlock(nn.Module):
@@ -71,14 +76,14 @@ class Decoder(nn.Module):
         self.dimension_list = dimension_list + [(3, pic_size)]
         self.latent_dim = latent_dim
         self.latent_sample_number = latent_sample_number
-        self.fc = nn.Linear(latent_dim * latent_sample_number, dimension_list[0][0] * dimension_list[0][1] * dimension_list[0][1])
+        self.fc = nn.Linear(latent_dim * latent_sample_number, self.dimension_list[0][0] * self.dimension_list[0][1] * self.dimension_list[0][1])
         self.blocks = nn.Sequential(
             *[
                 DecoderConvBlock(
-                    dimension_list[i][0], 
-                    dimension_list[i + 1][0], 
-                    upsample = dimension_list[i + 1][1] > dimension_list[i][1]
-                ) for i in range(len(dimension_list) - 1)
+                    self.dimension_list[i][0], 
+                    self.dimension_list[i + 1][0], 
+                    upsample = self.dimension_list[i + 1][1] > self.dimension_list[i][1]
+                ) for i in range(len(self.dimension_list) - 1)
             ]
         )
 
@@ -96,15 +101,30 @@ class VAE(nn.Module):
         super(VAE, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+        self.latent_dim = encoder.latent_dim
+        self.latent_sample_number = decoder.latent_sample_number
+        assert self.latent_dim == decoder.latent_dim, "Encoder and decoder latent dimensions must match."
 
-    def reparameterize(self, mu, logvar):
+
+    def reparametrize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
+        batch_size, latent_dim = mu.size()
+
+        # Generate multiple samples: (batch_size, latent_sample_number, latent_dim)
+        eps = torch.randn(batch_size, self.latent_sample_number, latent_dim, device=mu.device)
+        mu = mu.unsqueeze(1)  # (batch_size, 1, latent_dim)
+        std = std.unsqueeze(1)  # (batch_size, 1, latent_dim)
+
+        z = mu + eps * std  # (batch_size, latent_sample_number, latent_dim)
+
+        # Concatenate along latent dimension
+        z = z.view(batch_size, -1)  # (batch_size, latent_dim * latent_sample_number)
+        return z
+
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
-        z = self.reparameterize(mu, logvar)
+        z = self.reparametrize(mu, logvar)
         x_recon = self.decoder(z)
         return x_recon, mu, logvar
 
@@ -112,3 +132,12 @@ class VAE(nn.Module):
 
 
 
+def vae_loss_function(reconstructed, original, mu, logvar):
+    # Rekonstrukcja: MSE lub BCE
+    recon_loss = torch.nn.functional.mse_loss(reconstructed, original, reduction='sum')
+    
+    # KL-divergence (dla N(mu, sigma) || N(0, 1))
+    # https://arxiv.org/abs/1312.6114 (Kingma & Welling)
+    kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    
+    return recon_loss + kl_div

@@ -11,6 +11,6 @@ The dataset can be found [here](https://www.kaggle.com/datasets/borhanitrash/cat
 ## Dependencies
 
 ```{bash}
-pip install torch
+pip install torch torchvision matplotlib
 
 ```
