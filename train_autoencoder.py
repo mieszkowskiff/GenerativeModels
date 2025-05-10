@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 from torchvision import transforms, datasets
-from VAE_components import VAE, vae_loss_function, Encoder, Decoder
+from components import criterion, AutoEncoder, Encoder, Decoder
 import tqdm
 from torchsummary import summary
 from utils import display
 
 def main():
-    torch.manual_seed(13)
+    torch.manual_seed(56)
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -18,31 +18,14 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder = Encoder(
-        latent_dim = 256, 
-        dimension_list = [
-            (3, 32, False),
-            (32, 64, True),
-            (64, 128, True),
-            (128, 256, True),
-            (256, 512, True)
-        ]
+        latent_dim = 128
     )
     decoder = Decoder(
-        latent_dim = 256, 
-        dimension_list = [
-            (512, 512, True),
-            (512, 256, True),
-            (256, 128, True),
-            (128, 64, True),
-            (64, 32, True),
-            (32, 32, True),
-            (32, 3, False)
-        ], 
-        latent_sample_number = 10
+        latent_dim = 128
     )
 
 
-    model = VAE(
+    model = AutoEncoder(
         encoder = encoder, 
         decoder = decoder
     )
@@ -52,14 +35,14 @@ def main():
     summary(model, (3, 64, 64))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    num_epochs = 50
+    num_epochs = 20
     model.train()
     for epoch in range(num_epochs):
         for data, _ in tqdm.tqdm(dataloader):
             data = data.to(device)
             optimizer.zero_grad()
-            recon_batch, mu, logvar = model(data)
-            loss = vae_loss_function(recon_batch, data, mu, logvar)
+            recon_batch, z = model(data)
+            loss = criterion(recon_batch, data, z)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
             optimizer.step()
@@ -69,18 +52,18 @@ def main():
             loss = 0
             for data, _ in tqdm.tqdm(dataloader):
                 data = data.to(device)
-                recon_batch, mu, logvar = model(data)
-                loss += vae_loss_function(recon_batch, data, mu, logvar)
+                recon_batch, z = model(data)
+                loss += criterion(recon_batch, data, z)
             loss /= len(dataloader.dataset)
             print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
     
     # Save the model
-    torch.save(model.state_dict(), "vae_model.pth")
+    torch.save(model.state_dict(), "autoencoder.pth")
     with torch.no_grad():
         model.eval()
         for i in range(1000):
             img = dataloader.dataset[torch.randint(0, 1200, (1,))][0].unsqueeze(0).to(device)
-            reconstructed, mu, logvar = model(img)
+            reconstructed, z = model(img)
             display(img)
             display(reconstructed)
 
