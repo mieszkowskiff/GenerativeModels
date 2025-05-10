@@ -7,33 +7,38 @@ from torchsummary import summary
 from utils import display
 
 def main():
-    torch.manual_seed(42)
+    torch.manual_seed(13)
 
     transform = transforms.Compose([
-        transforms.ToTensor()
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
     dataset = datasets.ImageFolder(root='data', transform=transform)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size = 64, shuffle=True, num_workers=4)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size = 128, shuffle=True, num_workers=4)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder = Encoder(
-        latent_dim = 128, 
+        latent_dim = 256, 
         dimension_list = [
-            (32, 64), 
-            (64, 32), 
-            (128, 16),
-            (256, 8)
+            (3, 32, False),
+            (32, 64, True),
+            (64, 128, True),
+            (128, 256, True),
+            (256, 512, True)
         ]
     )
     decoder = Decoder(
-        latent_dim = 128, 
+        latent_dim = 256, 
         dimension_list = [
-            (256, 8),
-            (128, 16), 
-            (64, 32), 
-            (32, 64)
+            (512, 512, True),
+            (512, 256, True),
+            (256, 128, True),
+            (128, 64, True),
+            (64, 32, True),
+            (32, 32, True),
+            (32, 3, False)
         ], 
-        latent_sample_number = 1
+        latent_sample_number = 10
     )
 
 
@@ -47,7 +52,7 @@ def main():
     summary(model, (3, 64, 64))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    num_epochs = 10
+    num_epochs = 50
     model.train()
     for epoch in range(num_epochs):
         for data, _ in tqdm.tqdm(dataloader):
@@ -56,6 +61,7 @@ def main():
             recon_batch, mu, logvar = model(data)
             loss = vae_loss_function(recon_batch, data, mu, logvar)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
             optimizer.step()
 
         with torch.no_grad():
@@ -67,11 +73,14 @@ def main():
                 loss += vae_loss_function(recon_batch, data, mu, logvar)
             loss /= len(dataloader.dataset)
             print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
-            
+    
+    # Save the model
+    torch.save(model.state_dict(), "vae_model.pth")
+    with torch.no_grad():
+        model.eval()
+        for i in range(1000):
             img = dataloader.dataset[torch.randint(0, 1200, (1,))][0].unsqueeze(0).to(device)
             reconstructed, mu, logvar = model(img)
-            print(mu)
-            print(logvar)
             display(img)
             display(reconstructed)
 

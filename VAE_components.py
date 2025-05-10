@@ -9,20 +9,18 @@ class EncoderConvBlock(nn.Module):
         self.conv = nn.Conv2d(
             in_channels = in_channels, 
             out_channels = out_channels, 
-            kernel_size=3, 
-            stride=2, 
-            padding=1)
+            kernel_size = 3,
+            padding = 1)
         
         self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
         self.downsample = downsample
     
     def forward(self, x):
         x = self.conv(x)
         x = self.bn(x)
-        x = self.relu(x)
+        x = torch.nn.ReLU()(x)
         if self.downsample:
-            x = nn.MaxPool2d(kernel_size=2, stride=2)(x)
+            x = nn.MaxPool2d(kernel_size = 2)(x)
         return x
 
 
@@ -30,25 +28,27 @@ class EncoderConvBlock(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, dimension_list, latent_dim, pic_size = 64):
         super(Encoder, self).__init__()
-        self.dimension_list = [(3, pic_size)] + dimension_list
+        self.dimension_list = dimension_list
         self.latent_dim = latent_dim
         self.blocks = nn.Sequential(
             *[
                 EncoderConvBlock(
                     in_channels = self.dimension_list[i][0], 
-                    out_channels = self.dimension_list[i+1][0], 
-                    downsample = self.dimension_list[i + 1][1] < self.dimension_list[i][1]
-                ) for i in range(len(self.dimension_list) - 1)
+                    out_channels = self.dimension_list[i][1], 
+                    downsample = self.dimension_list[i][2],
+                ) for i in range(len(self.dimension_list))
             ]
         )
+        self.dense = nn.LazyLinear(512)
         self.fc_mu = nn.LazyLinear(latent_dim)
         self.fc_logvar = nn.LazyLinear(latent_dim)
 
     def forward(self, x):
         for block in self.blocks:
-            print(x.shape)
             x = block(x)
         x = nn.Flatten()(x)
+        x = self.dense(x)
+        x = torch.nn.ReLU()(x)
         mu = self.fc_mu(x)
         logvar = self.fc_logvar(x)
         return mu, logvar
@@ -57,43 +57,46 @@ class Encoder(nn.Module):
 class DecoderConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, upsample = True):
         super(DecoderConvBlock, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size = 3, padding = 1)
         self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
         self.upsample = upsample
     
     def forward(self, x):
         if self.upsample:
-            x = nn.Upsample(scale_factor=2)(x)
+            x = nn.Upsample(scale_factor = 2)(x)
         x = self.conv(x)
         x = self.bn(x)
-        x = self.relu(x)
+        x = torch.nn.ReLU()(x)
         return x
     
 class Decoder(nn.Module):
     def __init__(self, dimension_list, latent_dim, latent_sample_number = 1, pic_size = 64):
         super(Decoder, self).__init__()
-        self.dimension_list = dimension_list + [(3, pic_size)]
+        self.dimension_list = dimension_list
         self.latent_dim = latent_dim
         self.latent_sample_number = latent_sample_number
-        self.fc = nn.Linear(latent_dim * latent_sample_number, self.dimension_list[0][0] * self.dimension_list[0][1] * self.dimension_list[0][1])
+        self.dense = nn.Linear(latent_dim * latent_sample_number, 512)
+        self.fc = nn.Linear(512, self.dimension_list[0][0])
         self.blocks = nn.Sequential(
             *[
                 DecoderConvBlock(
-                    self.dimension_list[i][0], 
-                    self.dimension_list[i + 1][0], 
-                    upsample = self.dimension_list[i + 1][1] > self.dimension_list[i][1]
-                ) for i in range(len(self.dimension_list) - 1)
+                    in_channels = self.dimension_list[i][0], 
+                    out_channels = self.dimension_list[i][1], 
+                    upsample = self.dimension_list[i][2],
+                ) for i in range(len(self.dimension_list))
             ]
         )
+        assert pic_size == 2**sum(elem[2] for elem in self.dimension_list), "Wrong number of upsampling layers"
 
     def forward(self, z):
         z = nn.Flatten()(z)
+        z = self.dense(z)
+        z = torch.nn.ReLU()(z)
         z = self.fc(z)
-        z = z.view(-1, self.dimension_list[0][0], self.dimension_list[0][1], self.dimension_list[0][1])
+        z = z.view(-1, self.dimension_list[0][0], 1, 1)
         for block in self.blocks:
             z = block(z)
-        return nn.Sigmoid()(z)
+        return nn.Tanh()(z) #nn.Sigmoid()(z)
     
 
 class VAE(nn.Module):
