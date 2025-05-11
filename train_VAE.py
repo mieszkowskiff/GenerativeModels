@@ -17,50 +17,8 @@ def main():
     dataloader = torch.utils.data.DataLoader(dataset, batch_size = 128, shuffle=True, num_workers=4)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    encoder = Encoder(
-        conv_list = [
-            {
-                "in_channels": 3,
-                "out_channels": 64,
-                "divider": 2,
-                "conv_num": 2
-            },
-            {
-                "in_channels": 64,
-                "out_channels": 128,
-                "divider": 2,
-                "conv_num": 2
-            },
-            {
-                "in_channels": 128,
-                "out_channels": 256,
-                "divider": 2,
-                "conv_num": 2
-            }
-        ]
-    )
-    decoder = Decoder(
-        conv_list = [
-            {
-                "in_channels": 256,
-                "out_channels": 128,
-                "multiplier": 2,
-                "conv_num": 2
-            },
-            {
-                "in_channels": 128,
-                "out_channels": 64,
-                "multiplier": 2,
-                "conv_num": 2
-            },
-            {
-                "in_channels": 64,
-                "out_channels": 3,
-                "multiplier": 2,
-                "conv_num": 2
-            }
-        ]
-    )
+    encoder = Encoder(latent_dim = 256)
+    decoder = Decoder(latent_dim = 256)
 
 
 
@@ -70,11 +28,13 @@ def main():
     )
 
     model.to(device)
+    dummy_input = torch.randn(1, 3, 64, 64).to(device)
+    _ = model(dummy_input)
 
     summary(model, (3, 64, 64))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    num_epochs = 50
+    num_epochs = 150
     model.train()
     for epoch in range(num_epochs):
         for data, _ in tqdm.tqdm(dataloader):
@@ -89,26 +49,28 @@ def main():
         with torch.no_grad():
             model.eval()
             MSE_loss = 0
-            BCE_loss = 0
+            KLD_loss = 0
             for data, _ in tqdm.tqdm(dataloader):
                 data = data.to(device)
                 recon_batch, mu, logvar = model(data)
-                mse, bce = vae_loss_function(recon_batch, data, mu, logvar, split=True)
+                mse, kld = vae_loss_function(recon_batch, data, mu, logvar, split = True)
                 MSE_loss += mse
-                BCE_loss += bce
+                KLD_loss += kld
             MSE_loss /= len(dataloader.dataset)
-            BCE_loss /= len(dataloader.dataset)
-            print(f"Epoch {epoch + 1}/{num_epochs}, MSE_loss: {MSE_loss:.4f}, BCE_loss: {BCE_loss:.4f}")
+            KLD_loss /= len(dataloader.dataset)
+            print(f"Epoch {epoch + 1}/{num_epochs}, MSE_loss: {MSE_loss:.4f}, KLD_loss: {KLD_loss:.4f}")
     
     # Save the model
-    torch.save(model.state_dict(), "vae_model.pth")
+    torch.save(model.state_dict(), "autoencoder2.pth")
     with torch.no_grad():
         model.eval()
-        for i in range(1000):
+        for i in range(10):
             img = dataloader.dataset[torch.randint(0, 1200, (1,))][0].unsqueeze(0).to(device)
             reconstructed, mu, logvar = model(img)
             display(img)
             display(reconstructed)
+
+    
 
         
 
