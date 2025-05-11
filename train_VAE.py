@@ -18,28 +18,50 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder = Encoder(
-        latent_dim = 256, 
-        dimension_list = [
-            (3, 32, False),
-            (32, 64, True),
-            (64, 128, True),
-            (128, 256, True),
-            (256, 512, True)
+        conv_list = [
+            {
+                "in_channels": 3,
+                "out_channels": 64,
+                "divider": 2,
+                "conv_num": 2
+            },
+            {
+                "in_channels": 64,
+                "out_channels": 128,
+                "divider": 2,
+                "conv_num": 2
+            },
+            {
+                "in_channels": 128,
+                "out_channels": 256,
+                "divider": 2,
+                "conv_num": 2
+            }
         ]
     )
     decoder = Decoder(
-        latent_dim = 256, 
-        dimension_list = [
-            (512, 512, True),
-            (512, 256, True),
-            (256, 128, True),
-            (128, 64, True),
-            (64, 32, True),
-            (32, 32, True),
-            (32, 3, False)
-        ], 
-        latent_sample_number = 10
+        conv_list = [
+            {
+                "in_channels": 256,
+                "out_channels": 128,
+                "multiplier": 2,
+                "conv_num": 2
+            },
+            {
+                "in_channels": 128,
+                "out_channels": 64,
+                "multiplier": 2,
+                "conv_num": 2
+            },
+            {
+                "in_channels": 64,
+                "out_channels": 3,
+                "multiplier": 2,
+                "conv_num": 2
+            }
+        ]
     )
+
 
 
     model = VAE(
@@ -61,18 +83,22 @@ def main():
             recon_batch, mu, logvar = model(data)
             loss = vae_loss_function(recon_batch, data, mu, logvar)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
         with torch.no_grad():
             model.eval()
-            loss = 0
+            MSE_loss = 0
+            BCE_loss = 0
             for data, _ in tqdm.tqdm(dataloader):
                 data = data.to(device)
                 recon_batch, mu, logvar = model(data)
-                loss += vae_loss_function(recon_batch, data, mu, logvar)
-            loss /= len(dataloader.dataset)
-            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
+                mse, bce = vae_loss_function(recon_batch, data, mu, logvar, split=True)
+                MSE_loss += mse
+                BCE_loss += bce
+            MSE_loss /= len(dataloader.dataset)
+            BCE_loss /= len(dataloader.dataset)
+            print(f"Epoch {epoch + 1}/{num_epochs}, MSE_loss: {MSE_loss:.4f}, BCE_loss: {BCE_loss:.4f}")
     
     # Save the model
     torch.save(model.state_dict(), "vae_model.pth")
