@@ -118,29 +118,30 @@ class Decoder(torch.nn.Module):
 
         self.fc = torch.nn.Sequential(
             torch.nn.Linear(latent_dim, 256 * 4),
-            torch.nn.LayerNorm(256 * 4),
+            #torch.nn.LayerNorm(256 * 4),
             torch.nn.ReLU(),
             torch.nn.Linear(256 * 4, 256 * 4 * 4),
-            torch.nn.LayerNorm(256 * 4 * 4),
-            torch.nn.ReLU(),
+            #torch.nn.LayerNorm(256 * 4 * 4),
+            torch.nn.ReLU()
         )
 
-        self.deconv1 = DecoderConvBlock(256, 128)
-        self.deconv2 = DecoderConvBlock(128, 64)
-        self.deconv3 = DecoderConvBlock(64, 32)
-        self.deconv4 = DecoderConvBlock(32, 3)
+        self.deconv1 = DecoderConvBlock(256, 128, conv_num = 2)
+        self.deconv2 = DecoderConvBlock(128, 64, conv_num = 2)
+        self.deconv3 = DecoderConvBlock(64, 32, conv_num = 2)
+        self.deconv4 = DecoderConvBlock(32, 3, conv_num = 2)
 
     def forward(self, x):
         x = self.fc(x)
-        #print("Min:", x.min().item(), "Max:", x.max().item())
         x = x.view(-1, 256, 4, 4)
 
         x = self.deconv1(x)
         x = self.deconv2(x)
+        
         x = self.deconv3(x)
+        
         x = self.deconv4(x)
 
-        
+        print(x.min().item(), x.max().item())
         return torch.nn.Tanh()(x)
     
 class VAE(torch.nn.Module):
@@ -165,7 +166,7 @@ class VAE(torch.nn.Module):
 
 
 
-def vae_loss_function(recon_x, x, mu, logvar, split = False, beta = 0.0000001, multiplier = 0.0001):
+def vae_loss_function(recon_x, x, mu, logvar, split = False, beta = 0.1, multiplier = 0.0001):
     """
     VAE loss function
     """

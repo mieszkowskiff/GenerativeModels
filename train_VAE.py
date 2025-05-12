@@ -65,7 +65,7 @@ def main():
 
     
     # Save the model
-    torch.save(model.state_dict(), "autoencoder3.pth")
+    torch.save(model.state_dict(), "VAE.pth")
     with torch.no_grad():
         model.eval()
         for i in range(10):
