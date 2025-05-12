@@ -140,7 +140,7 @@ class VAE(torch.nn.Module):
 
 def vae_loss_function(recon_x, x, mu, logvar, split = False, alpha = 0.0001, beta = 0.01):
     MSE = torch.nn.MSELoss(reduction='sum')(recon_x, x)
-    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / x.shape[0]
+    KLD = -0.5 * torch.sum( 1 - mu.pow(2) + logvar - logvar.exp()) / x.shape[0]
     if split:
         return MSE, KLD
     return alpha * MSE + beta * KLD

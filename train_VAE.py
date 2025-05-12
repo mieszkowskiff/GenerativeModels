@@ -7,7 +7,7 @@ from torchsummary import summary
 from utils import display
 
 def main():
-    torch.manual_seed(13)
+    torch.manual_seed(12)
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -61,7 +61,7 @@ def main():
             print(f"Epoch {epoch + 1}/{num_epochs}, MSE_loss: {MSE_loss:.4f}, KLD_loss: {KLD_loss:.4f}")
     
     # Save the model
-    torch.save(model.state_dict(), "autoencoder2.pth")
+    torch.save(model.state_dict(), "autoencoder3.pth")
     with torch.no_grad():
         model.eval()
         for i in range(10):

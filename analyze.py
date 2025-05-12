@@ -4,7 +4,7 @@ from torchvision import transforms, datasets
 import tqdm
 from utils import display
 def main():
-    torch.manual_seed(13)
+    torch.manual_seed(10)
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -52,24 +52,24 @@ def main():
 
     mus = torch.tensor([])
     encoder.eval()
-    with torch.no_grad():
-        for data, _ in tqdm.tqdm(dataloader):
-            data = data.to(device)
-            mu, logvar = encoder(data)
-            mus = torch.cat((mus, mu.to("cpu")), dim=0)
-    mean = mus.mean(dim=0)  # shape: [256]
+    # with torch.no_grad():
+    #     for data, _ in tqdm.tqdm(dataloader):
+    #         data = data.to(device)
+    #         mu, logvar = encoder(data)
+    #         mus = torch.cat((mus, mu.to("cpu")), dim=0)
+    # mean = mus.mean(dim=0)  # shape: [256]
 
-    # 2. Centrowanie danych
-    mus_centered = mus - mean
+    # # 2. Centrowanie danych
+    # mus_centered = mus - mean
 
-    # 3. Macierz kowariancji próbkowej
-    N = mus.shape[0]
-    cov = (mus_centered.T @ mus_centered) / (N - 1)
+    # # 3. Macierz kowariancji próbkowej
+    # N = mus.shape[0]
+    # cov = (mus_centered.T @ mus_centered) / (N - 1)
 
-    eps = 1e-4
-    cov_regularized = cov + eps * torch.eye(cov.shape[0], device=cov.device)
-    L = torch.linalg.cholesky(cov_regularized).to(device)
-    mean = mean.to(device)
+    # eps = 1e-4
+    # cov_regularized = cov + eps * torch.eye(cov.shape[0], device=cov.device)
+    # L = torch.linalg.cholesky(cov_regularized).to(device)
+    # mean = mean.to(device)
 
 
 
@@ -78,7 +78,7 @@ def main():
         for i in range(100):
 
             e = torch.randn(256).to(device)
-            z = L @ e + mean
+            z = e
             z = z.view(-1, 256)
 
             display(decoder(z))
