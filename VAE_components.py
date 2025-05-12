@@ -124,11 +124,11 @@ class Decoder(torch.nn.Module):
             #torch.nn.LayerNorm(256 * 4 * 4),
             torch.nn.ReLU()
         )
-
-        self.deconv1 = DecoderConvBlock(256, 128, conv_num = 2)
-        self.deconv2 = DecoderConvBlock(128, 64, conv_num = 2)
-        self.deconv3 = DecoderConvBlock(64, 32, conv_num = 2)
-        self.deconv4 = DecoderConvBlock(32, 3, conv_num = 2)
+        n = 5
+        self.deconv1 = DecoderConvBlock(256, 128, conv_num = n)
+        self.deconv2 = DecoderConvBlock(128, 64, conv_num = n)
+        self.deconv3 = DecoderConvBlock(64, 32, conv_num = n)
+        self.deconv4 = DecoderConvBlock(32, 3, conv_num = n)
 
     def forward(self, x):
         x = self.fc(x)
@@ -141,7 +141,7 @@ class Decoder(torch.nn.Module):
         
         x = self.deconv4(x)
 
-        print(x.min().item(), x.max().item())
+        #print(x.min().item(), x.max().item())
         return torch.nn.Tanh()(x)
     
 class VAE(torch.nn.Module):
@@ -166,12 +166,12 @@ class VAE(torch.nn.Module):
 
 
 
-def vae_loss_function(recon_x, x, mu, logvar, split = False, beta = 0.1, multiplier = 0.0001):
+def vae_loss_function(recon_x, x, mu, logvar, split = False, beta = 1, multiplier = 1):
     """
     VAE loss function
     """
     BCE = torch.nn.functional.mse_loss(recon_x.view(-1), x.view(-1), reduction = 'sum')
-    KLD = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / x.size(0)
 
     if split:
         return BCE , beta * KLD
