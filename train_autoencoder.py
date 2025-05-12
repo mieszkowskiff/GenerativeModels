@@ -35,7 +35,7 @@ def main():
     summary(model, (3, 64, 64))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    num_epochs = 20
+    num_epochs = 100
     model.train()
     for epoch in range(num_epochs):
         for data, _ in tqdm.tqdm(dataloader):
@@ -58,7 +58,7 @@ def main():
             print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
     
     # Save the model
-    torch.save(model.state_dict(), "autoencoder.pth")
+    torch.save(model.state_dict(), "autoencoder2.pth")
     with torch.no_grad():
         model.eval()
         for i in range(1000):

@@ -21,38 +21,41 @@ class Encoder(nn.Module):
 
         self.starting_conv = nn.Conv2d(
             in_channels = 3, 
-            out_channels = 128, 
+            out_channels = 64, 
             kernel_size = 3, 
             padding = 1
         )
 
         self.conv = nn.Sequential(
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
+            EncoderConvBlock(64),
+            EncoderConvBlock(64),
+            EncoderConvBlock(64),
+            EncoderConvBlock(64),
         )
 
         self.connection_conv = nn.Conv2d(
-            in_channels = 128, 
-            out_channels = 2, 
+            in_channels = 64, 
+            out_channels = 4, 
             kernel_size = 3, 
             padding = 1
         )
 
+
         self.dense = torch.nn.Sequential(
             nn.Flatten(),
-            nn.LazyLinear(4096),
+            nn.Linear(32 * 32 * 4, 4096),
             nn.ReLU(),
-            nn.LazyLinear(1024),
+            nn.Linear(4096, 1024),
             nn.ReLU(),
-            nn.LazyLinear(latent_dim),
+            nn.Linear(1024, latent_dim),
             nn.ReLU(),
         )
     def forward(self, x):
         x = self.starting_conv(x)
         x = self.conv(x)
+
         x = self.connection_conv(x)
+        x = nn.MaxPool2d(kernel_size = 2)(x)
         x = nn.ReLU()(x)
         x = self.dense(x)
         return x
@@ -75,13 +78,11 @@ class Decoder(nn.Module):
         self.latent_dim = latent_dim
 
         self.dense = torch.nn.Sequential(
-            nn.LazyLinear(latent_dim),
+            nn.Linear(latent_dim, 512),
             nn.ReLU(),
-            nn.LazyLinear(512),
+            nn.Linear(512, 2048),
             nn.ReLU(),
-            nn.LazyLinear(2048),
-            nn.ReLU(),
-            nn.LazyLinear(8192),
+            nn.Linear(2048, 8192),
             nn.ReLU(),
         )
 
@@ -133,5 +134,7 @@ class AutoEncoder(nn.Module):
         return y, z
 
     
-def criterion(recon_batch, data, z):
-    return nn.MSELoss(reduction = 'sum')(recon_batch, data) + 0.1 * nn.MSELoss(reduction = 'sum')(z, torch.zeros_like(z))
+def criterion(recon_batch, data, z, split = False):
+    if split:
+        return nn.MSELoss(reduction = 'sum')(recon_batch, data), 0.1 * nn.MSELoss(reduction = 'sum')(z, torch.zeros_like(z))
+    return nn.MSELoss(reduction = 'sum')(recon_batch, data) +  0.1 * nn.MSELoss(reduction = 'sum')(z, torch.zeros_like(z))
