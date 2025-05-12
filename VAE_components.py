@@ -2,123 +2,146 @@ import torch
 
 
 class EncoderConvBlock(torch.nn.Module):
-    def __init__(self, channels):
+    def __init__(self, in_channels, out_channels, conv_num = 3):
         super(EncoderConvBlock, self).__init__()
-        self.conv = torch.nn.Conv2d(channels, channels, kernel_size = 3, padding = 1)
-        self.bn = torch.nn.BatchNorm2d(channels)
 
+        self.residual = torch.nn.Conv2d(in_channels, out_channels, kernel_size = 1)
+
+        self.conv = torch.nn.Sequential(
+            *[
+                item for _ in range(conv_num - 1) for item in (
+                    torch.nn.Conv2d(
+                        in_channels, 
+                        in_channels, 
+                        kernel_size = 3, 
+                        padding = 1
+                    ),
+                    torch.nn.ReLU(),
+                    torch.nn.BatchNorm2d(in_channels),
+                )
+            ]
+        )
+
+        self.conv.append(
+            torch.nn.Conv2d(
+                in_channels, 
+                out_channels, 
+                kernel_size = 3, 
+                padding = 1
+            )
+        )
+        
     def forward(self, x):
-        y = self.conv(x)
-        y = self.bn(y)
-        return torch.nn.ReLU()(y + x)
-    
+
+        residual = self.residual(x)
+        x = self.conv(x)
+        x += residual
+        x = torch.nn.ReLU()(x)
+        return torch.nn.MaxPool2d(kernel_size = 2)(x)
+
 
 class Encoder(torch.nn.Module):
     def __init__(self, latent_dim):
         super(Encoder, self).__init__()
         self.latent_dim = latent_dim
 
-        self.starting_conv = torch.nn.Conv2d(
-            in_channels = 3, 
-            out_channels = 128, 
-            kernel_size = 3, 
-            padding = 1
-        )
-
-        self.conv = torch.nn.Sequential(
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
-        )
-
-        self.connection_conv = torch.nn.Conv2d(
-            in_channels = 128, 
-            out_channels = 4, 
-            kernel_size = 3, 
-            padding = 1,
-            stride = 2
-        )
+        self.conv1 = EncoderConvBlock(3, 32, conv_num = 2)
+        self.conv2 = EncoderConvBlock(32, 64, conv_num = 2)
+        self.conv3 = EncoderConvBlock(64, 128, conv_num = 2)
+        self.conv4 = EncoderConvBlock(128, 256, conv_num = 2)
 
         self.dense = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(4 * 32 * 32, 4096),
-            torch.nn.ReLU(),
-            torch.nn.Linear(4096, 1024),
+            torch.nn.Linear(256 * 4 * 4, 256 * 4),
             torch.nn.ReLU(),
         )
 
-        self.mean = torch.nn.Linear(1024, latent_dim)
-        self.log_var = torch.nn.Linear(1024, latent_dim)
+        self.fc_mu = torch.nn.Linear(256 * 4, latent_dim)
+        self.fc_logvar = torch.nn.Linear(256 * 4, latent_dim)
 
     def forward(self, x):
-        x = self.starting_conv(x)
-        x = self.conv(x)
-        x = self.connection_conv(x)
-        x = torch.nn.ReLU()(x)
-        x = self.dense(x)
-        mean = self.mean(x)
-        log_var = self.log_var(x)
-        return mean, log_var
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
 
+        x = self.dense(x)
+
+        mu = self.fc_mu(x)
+        logvar = self.fc_logvar(x)
+
+        return mu, logvar
 
 class DecoderConvBlock(torch.nn.Module):
-    def __init__(self, channels):
+    def __init__(self, in_channels, out_channels, conv_num = 3):
         super(DecoderConvBlock, self).__init__()
-        self.conv = torch.nn.Conv2d(channels, channels, kernel_size = 3, padding = 1)
-        self.bn = torch.nn.BatchNorm2d(channels)
-    
+
+        self.residual = torch.nn.Conv2d(in_channels, out_channels, kernel_size = 1)
+
+        self.conv = torch.nn.Sequential(
+            *[
+                item for _ in range(conv_num - 1) for item in (
+                    torch.nn.ConvTranspose2d(
+                        in_channels = in_channels,
+                        out_channels = in_channels,
+                        kernel_size = 3,
+                        stride = 1,
+                        padding = 1
+                    ),
+                    torch.nn.ReLU(),
+                )
+            ]
+        )
+
+        self.conv.append(
+            torch.nn.ConvTranspose2d(
+                in_channels = in_channels,
+                out_channels = out_channels,
+                kernel_size = 4,
+                stride = 2,
+                padding = 1
+            )
+        )
+
     def forward(self, x):
-        y = self.conv(x)
-        y = self.bn(y)
-        return torch.nn.ReLU()(x + y)
+        residual = self.residual(x)
+        residual = torch.nn.Upsample(scale_factor = 2)(residual)
+        x = self.conv(x)
+        x += residual
+        x = torch.nn.ReLU()(x)
+        return x
     
 class Decoder(torch.nn.Module):
     def __init__(self, latent_dim):
         super(Decoder, self).__init__()
         self.latent_dim = latent_dim
 
-        self.dense = torch.nn.Sequential(
-            torch.nn.Linear(latent_dim, latent_dim),
+        self.fc = torch.nn.Sequential(
+            torch.nn.Linear(latent_dim, 256 * 4),
+            torch.nn.LayerNorm(256 * 4),
             torch.nn.ReLU(),
-            torch.nn.Linear(latent_dim, 512),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 2048),
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, 8192),
+            torch.nn.Linear(256 * 4, 256 * 4 * 4),
+            torch.nn.LayerNorm(256 * 4 * 4),
             torch.nn.ReLU(),
         )
 
-        self.connection_conv = torch.nn.Conv2d(
-            in_channels = 2, 
-            out_channels = 128, 
-            kernel_size = 3, 
-            padding = 1
-        )
+        self.deconv1 = DecoderConvBlock(256, 128)
+        self.deconv2 = DecoderConvBlock(128, 64)
+        self.deconv3 = DecoderConvBlock(64, 32)
+        self.deconv4 = DecoderConvBlock(32, 3)
 
-        self.conv = torch.nn.Sequential(
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
-            EncoderConvBlock(128),
-        )
+    def forward(self, x):
+        x = self.fc(x)
+        #print("Min:", x.min().item(), "Max:", x.max().item())
+        x = x.view(-1, 256, 4, 4)
 
-        self.ending_conv = torch.nn.Conv2d(
-            in_channels = 128, 
-            out_channels = 3, 
-            kernel_size = 3, 
-            padding = 1
-        )
+        x = self.deconv1(x)
+        x = self.deconv2(x)
+        x = self.deconv3(x)
+        x = self.deconv4(x)
 
-    def forward(self, z):
-        z = self.dense(z)
-        z = z.view(-1, 2, 64, 64)
-        z = self.connection_conv(z)
-        z = torch.nn.ReLU()(z)
-        z = self.conv(z)
-        z = self.ending_conv(z)
-        return torch.nn.Tanh()(z)
         
+        return torch.nn.Tanh()(x)
     
 class VAE(torch.nn.Module):
     def __init__(self, encoder, decoder):
@@ -126,28 +149,32 @@ class VAE(torch.nn.Module):
         self.encoder = encoder
         self.decoder = decoder
 
-    def reparameterize(self, mean, log_var):
-        std = torch.exp(0.5 * log_var)
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
-        return mean + eps * std
+        ret = mu + eps * std
+        
+        #print(ret.min().item(), ret.max().item())
+        return ret
 
     def forward(self, x):
-        mean, log_var = self.encoder(x)
-        z = self.reparameterize(mean, log_var)
-        reconstructed_x = self.decoder(z)
-        return reconstructed_x, mean, log_var
+        mu, logvar = self.encoder(x)
+        z = self.reparameterize(mu, logvar)
+        return self.decoder(z), mu, logvar
 
 
-def vae_loss_function(recon_x, x, mu, logvar, split = False, alpha = 0.0001, beta = 0.01):
-    MSE = torch.nn.MSELoss(reduction='sum')(recon_x, x)
-    KLD = -0.5 * torch.sum( 1 - mu.pow(2) + logvar - logvar.exp()) / x.shape[0]
+
+
+def vae_loss_function(recon_x, x, mu, logvar, split = False, beta = 0.0000001, multiplier = 0.0001):
+    """
+    VAE loss function
+    """
+    BCE = torch.nn.functional.mse_loss(recon_x.view(-1), x.view(-1), reduction = 'sum')
+    KLD = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+
     if split:
-        return MSE, KLD
-    return alpha * MSE + beta * KLD
-
-
-
-
-
+        return BCE , beta * KLD
+    
+    return multiplier * (BCE + beta * KLD)
 
 

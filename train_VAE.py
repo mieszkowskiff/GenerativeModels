@@ -7,7 +7,7 @@ from torchsummary import summary
 from utils import display
 
 def main():
-    torch.manual_seed(12)
+    torch.manual_seed(43)
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -17,8 +17,8 @@ def main():
     dataloader = torch.utils.data.DataLoader(dataset, batch_size = 128, shuffle=True, num_workers=4)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    encoder = Encoder(latent_dim = 256)
-    decoder = Decoder(latent_dim = 256)
+    encoder = Encoder(latent_dim = 128)
+    decoder = Decoder(latent_dim = 128)
 
 
 
@@ -34,7 +34,7 @@ def main():
     summary(model, (3, 64, 64))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    num_epochs = 150
+    num_epochs = 2
     model.train()
     for epoch in range(num_epochs):
         for data, _ in tqdm.tqdm(dataloader):
@@ -59,6 +59,10 @@ def main():
             MSE_loss /= len(dataloader.dataset)
             KLD_loss /= len(dataloader.dataset)
             print(f"Epoch {epoch + 1}/{num_epochs}, MSE_loss: {MSE_loss:.4f}, KLD_loss: {KLD_loss:.4f}")
+            img = dataloader.dataset[torch.randint(0, 1200, (1,))][0].unsqueeze(0).to(device)
+            reconstructed, mu, logvar = model(img)
+            print(logvar.min().item(), logvar.max().item())
+
     
     # Save the model
     torch.save(model.state_dict(), "autoencoder3.pth")
