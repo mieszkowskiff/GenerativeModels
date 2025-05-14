@@ -11,14 +11,14 @@ def main():
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
 
-    dataset = datasets.ImageFolder(root='data', transform=transform)
+    dataset = datasets.ImageFolder(root = 'cats', transform = transform)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size = 128, shuffle=True, num_workers=4)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = components.AutoEncoder(
-        encoder=components.Encoder(latent_dim=128),
-        decoder=components.Decoder(latent_dim=128)
+        encoder=components.Encoder(latent_dim = 128),
+        decoder=components.Decoder(latent_dim = 128)
     )
 
     model.load_state_dict(torch.load("autoencoder3.pth"))
@@ -30,20 +30,6 @@ def main():
     decoder = model.decoder
 
     model.eval()
-
-    # with torch.no_grad():
-    #         model.eval()
-    #         MSE_loss = 0
-    #         BCE_loss = 0
-    #         for data, _ in tqdm.tqdm(dataloader):
-    #             data = data.to(device)
-    #             recon_batch, z = model(data)
-    #             mse, bce = components.criterion(recon_batch, data, z, split=True)
-    #             MSE_loss += mse
-    #             BCE_loss += bce
-    #         MSE_loss /= len(dataloader.dataset)
-    #         BCE_loss /= len(dataloader.dataset)
-    #         print(f"MSE_loss: {MSE_loss:.4f}, BCE_loss: {BCE_loss:.4f}")
 
     with torch.no_grad():
         for i in range(5):
