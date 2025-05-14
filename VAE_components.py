@@ -3,8 +3,8 @@ import torch
 
 
 class Encoder(torch.nn.Module):
-    def _init__(self, latent_dim):
-        super(Encoder, self)._init_()
+    def __init__(self, latent_dim):
+        super(Encoder, self).__init__()
         self.latent_dim = latent_dim
         self.convolutions = torch.nn.Sequential(
             torch.nn.Conv2d(3, 32, kernel_size = 4, stride = 2, padding = 1),
@@ -82,4 +82,10 @@ class VAE(torch.nn.Module):
     
 
 
+def KL_divergence(mu, logvar):
+    return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1).mean()
 
+def LOSS(recon_x, x, mu, logvar, beta = 1):
+    BCE = torch.nn.functional.binary_cross_entropy(recon_x.view(-1, 64*64*3), x.view(-1, 64*64*3), reduction = 'sum') / x.size(0)
+    KLD = KL_divergence(mu, logvar)
+    return BCE + beta * KLD
