@@ -134,7 +134,5 @@ class AutoEncoder(nn.Module):
         return y, z
 
     
-def criterion(recon_batch, data, z, split = False):
-    if split:
-        return nn.MSELoss(reduction = 'sum')(recon_batch, data), 1 * nn.MSELoss(reduction = 'sum')(z, torch.zeros_like(z))
+def criterion(recon_batch, data, z):
     return nn.MSELoss(reduction = 'sum')(recon_batch, data) + 1 * nn.MSELoss(reduction = 'sum')(z, torch.zeros_like(z))

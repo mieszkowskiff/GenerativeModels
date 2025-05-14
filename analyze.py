@@ -3,7 +3,10 @@ import components
 from torchvision import transforms, datasets
 import tqdm
 from utils import display
+
 def main():
+
+    latent_dim = 256
     torch.manual_seed(10)
 
     transform = transforms.Compose([
@@ -17,11 +20,11 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = components.AutoEncoder(
-        encoder=components.Encoder(latent_dim = 128),
-        decoder=components.Decoder(latent_dim = 128)
+        encoder=components.Encoder(latent_dim = latent_dim),
+        decoder=components.Decoder(latent_dim = latent_dim)
     )
 
-    model.load_state_dict(torch.load("autoencoder3.pth"))
+    model.load_state_dict(torch.load("./models/AutoEncoders/autoencoder256.pth"))
 
     model.to(device)
 
@@ -65,9 +68,9 @@ def main():
     with torch.no_grad():
         for i in range(100):
 
-            e = torch.randn(128).to(device)
+            e = torch.randn(latent_dim).to(device)
             z = mean + L @ e
-            z = z.view(-1, 128)
+            z = z.view(-1, latent_dim)
 
             display(decoder(z))
 
