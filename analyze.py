@@ -3,10 +3,10 @@ import VAE_components
 import tqdm
 from utils import display
 def main():
-    torch.manual_seed(10)
+    torch.manual_seed(567)
 
 
-    latent_dim = 512
+    latent_dim = 64
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = VAE_components.VAE(
@@ -14,7 +14,7 @@ def main():
         decoder=VAE_components.Decoder(latent_dim = latent_dim)
     )
 
-    model.load_state_dict(torch.load("VAE.pth"))
+    model.load_state_dict(torch.load("./models/VAEs/VAE.pth"))
 
     model.to(device)
 
