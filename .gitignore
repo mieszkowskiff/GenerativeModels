@@ -1,4 +1,6 @@
 data/
 .venv/
+models/
+cats/
 __pycache__/
 *.pth
