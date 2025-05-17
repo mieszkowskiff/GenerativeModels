@@ -1,6 +1,6 @@
 import torch
 import math
-import torchsummary
+import tqdm
 
 class ConvolutionalBlock(torch.nn.Module):
     def __init__(self, in_channels, out_channels, time_encoding_dim = 4):
@@ -60,25 +60,25 @@ class MNISTAutoencoder(torch.nn.Module):
         super(MNISTAutoencoder, self).__init__()
         
         self.encoder_conv = torch.nn.ModuleList([
-            ConvolutionalBlock(1, 16, time_encoding_dim),
-            ConvolutionalBlock(16, 32, time_encoding_dim),
+            ConvolutionalBlock(1, 32, time_encoding_dim),
+            ConvolutionalBlock(32, 64, time_encoding_dim),
         ])
 
         self.dense = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(32 * 7 * 7, latent_dim * 4),
+            torch.nn.Linear(64 * 7 * 7, latent_dim * 4),
             torch.nn.ReLU(),
             torch.nn.Linear(latent_dim * 4, latent_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(latent_dim, latent_dim * 4),
             torch.nn.ReLU(),
-            torch.nn.Linear(latent_dim * 4, 32 * 7 * 7),
-            torch.nn.Unflatten(1, (32, 7, 7)),
+            torch.nn.Linear(latent_dim * 4, 64 * 7 * 7),
+            torch.nn.Unflatten(1, (64, 7, 7)),
         )
 
         self.decoder_conv = torch.nn.ModuleList([
-            ConvolutionalBlockTranspose(32, 16, time_encoding_dim),
-            ConvolutionalBlockTranspose(16, 1, time_encoding_dim)
+            ConvolutionalBlockTranspose(64, 32, time_encoding_dim),
+            ConvolutionalBlockTranspose(32, 1, time_encoding_dim)
         ])
 
         self.latent_dim = latent_dim
@@ -100,7 +100,7 @@ class MNISTAutoencoder(torch.nn.Module):
 
 
         exponent = -math.log(10000) / (half_dim - 1)
-        freqs = torch.exp(torch.arange(half_dim) * exponent)
+        freqs = torch.exp(torch.arange(half_dim) * exponent).to(self.device)
         angles = t[:, None] * freqs[None, :]
 
         emb = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)
@@ -109,7 +109,6 @@ class MNISTAutoencoder(torch.nn.Module):
 
     def forward(self, x, t):
         t = self.time_encoding(t)
-        t = t.to(self.device)
         t = self.time_mlp(t)
         
 
@@ -122,34 +121,18 @@ class MNISTAutoencoder(torch.nn.Module):
             x = layer(x, t)
 
         return x
-    
-    def fake_forward(self, x):
-        t = torch.zeros(x.size(0), self.time_encoding_dim).to(self.device)
-        for layer in self.encoder_conv:
-            x = layer(x, t)
-
-        x = self.dense(x)
-
-        for layer in self.decoder_conv:
-            x = layer(x, t)
-
-        return x
-
 
 
 class MNISTDiffusionAutoencoder(MNISTAutoencoder):
     def __init__(self, latent_dim = 2, time_encoding_dim = 2, beta_min = 0.001, beta_max = 0.02, steps = 1000):
         super(MNISTDiffusionAutoencoder, self).__init__(latent_dim = latent_dim, time_encoding_dim = time_encoding_dim)
 
+        self.steps = steps
+
         self.beta = torch.linspace(beta_min, beta_max, steps)
         self.alpha = 1 - self.beta
 
-        self.alpha_hat = [1]
-        for i in range(1, len(self.alpha)):
-            self.alpha_hat.append(self.alpha_hat[i - 1] * self.alpha[i])
-        self.alpha_hat.remove(1)
-
-        self.alpha_hat = torch.tensor(self.alpha_hat)
+        self.alpha_hat = torch.cumprod(self.alpha, dim = 0)
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
 
@@ -159,14 +142,6 @@ class MNISTDiffusionAutoencoder(MNISTAutoencoder):
         self.alpha_hat = self.alpha_hat.to(self.device)
         self.alpha = self.alpha.to(self.device)
 
-        forward = self.forward
-
-        self.forward = self.fake_forward
-
-        torchsummary.summary(self, ((1, 28, 28)))
-
-        self.forward = forward
-
 
     def train_step(self, x, t = None):
         x = x.to(self.device)
@@ -175,19 +150,35 @@ class MNISTDiffusionAutoencoder(MNISTAutoencoder):
         noise = torch.randn_like(x).to(self.device)
         t = t.to(self.device)
         x_t = torch.sqrt(self.alpha_hat[t].reshape(-1, 1, 1, 1)) * x + torch.sqrt(1 - self.alpha_hat[t].reshape(-1, 1, 1, 1)) * noise
-        t = t.to("cpu")
+        #t = t.to("cpu")
         output = self(x_t, t.float())
-        loss = self.loss_fn(output, noise)
+        loss = self.loss_fn(output, x)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         return loss.item()
 
+
+    def sample(self, x = None, T = None):
+        if x is None:
+            x = torch.randn((1, 1, 28, 28)).to(self.device)
+        if T is None:
+            T = self.steps - 1
+        print("Sampling...")
+        for t in tqdm.tqdm(range(T - 1, 0, -1)):
+            t = torch.tensor([t]).to(self.device)
+            recon_x = self(x, t)
+            recon_noise = x - recon_x
+            mu = 1 / torch.sqrt(self.alpha[t]) * (x - (1 - self.alpha[t]) / torch.sqrt(1 - self.alpha_hat[t] + 1e-5) * recon_noise)
+            sigma = torch.sqrt(self.beta[t])
+            x = mu + sigma * torch.randn_like(x)
+            x = torch.clamp(x, -3, 3)
+
+        recon_noise = self(x, torch.tensor([0]).to(self.device)).to(self.device)
+        x = 1 / torch.sqrt(self.alpha[0]) * (x - (1 - self.alpha[0]) / torch.sqrt(1 - self.alpha_hat[0] + 1e-5) * recon_noise)
+        x = torch.clamp(x, -3, 3)
+        return x
+
         
 
-
-if __name__ == "__main__":
-    a = MNISTDiffusionAutoencoder(latent_dim = 16, time_encoding_dim = 4)
-    x = torch.randn(2, 1, 28, 28)
-    a.train_step(x)
     
