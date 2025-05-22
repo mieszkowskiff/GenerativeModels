@@ -1,4 +1,4 @@
-from components import MNISTDiffusionAutoencoder
+from components import DiffusionAutoencoder
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
@@ -15,7 +15,7 @@ def main():
         transforms.Normalize((0.1307,), (0.3081,)),
         ])
     
-    epochs = 18
+    epochs = 100
     
     train_dataset = datasets.ImageFolder("./cats", transform = transform)
     train_loader = DataLoader(train_dataset, batch_size = 64, shuffle=True, num_workers = 4)
@@ -23,7 +23,7 @@ def main():
 
 
     
-    model = MNISTDiffusionAutoencoder(latent_dim = 256, time_encoding_dim = 128, steps = 1000)
+    model = DiffusionAutoencoder(latent_dim = 256, time_encoding_dim = 128, steps = 1000)
     for epoch in range(epochs):
         model.train()
         loss = 0
