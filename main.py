@@ -17,16 +17,12 @@ def main():
     
     epochs = 250
     
-    train_dataset = datasets.MNIST(root='./data', train = True, download = True, transform = transform)
+    train_dataset = datasets.DatasetFolder("./cats", transform = transform)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers = 4)
 
-    indices = [i for i, (_, label) in enumerate(train_dataset) if label == 9]
-
-    #Utwórz podzbiór tylko z siódemkami
-    subset = Subset(train_dataset, indices)
 
 
     
-    train_loader = DataLoader(subset, batch_size = 64, shuffle = True)
     model = MNISTDiffusionAutoencoder(latent_dim = 8, time_encoding_dim = 128, steps = 1000)
     for epoch in range(epochs):
         model.train()
