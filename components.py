@@ -3,7 +3,7 @@ import math
 import tqdm
 
 class ConvolutionalBlock(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, time_encoding_dim = 4, downsample = True):
+    def __init__(self, in_channels, out_channels, time_encoding_dim = 128, downsample = True):
         super(ConvolutionalBlock, self).__init__()
         self.downsample = downsample
         if downsample:
@@ -36,13 +36,24 @@ class ConvolutionalBlock(torch.nn.Module):
     
 
 class ConvolutionalBlockTranspose(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, time_encoding_dim = 4, upsample = True):
+    def __init__(self, in_channels, out_channels, time_encoding_dim = 128, upsample = True, skip_connection_channels = 0):
         super(ConvolutionalBlockTranspose, self).__init__()
         self.upsample = upsample
         if upsample:
-            self.conv = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = 4, stride = 2, padding = 1)
+            self.conv = torch.nn.ConvTranspose2d(
+                in_channels + skip_connection_channels, 
+                out_channels, 
+                kernel_size = 4,
+                stride = 2, 
+                padding = 1
+                )
         else:
-            self.conv = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = 3, padding = 1)
+            self.conv = torch.nn.ConvTranspose2d(
+                in_channels + skip_connection_channels, 
+                out_channels, 
+                kernel_size = 3, 
+                padding = 1
+                )
         self.gn = torch.nn.GroupNorm(1, out_channels)
         self.time_scale = torch.nn.Linear(time_encoding_dim, out_channels)
         self.time_shift = torch.nn.Linear(time_encoding_dim, out_channels)
@@ -50,12 +61,15 @@ class ConvolutionalBlockTranspose(torch.nn.Module):
         self.activation = torch.nn.SiLU()
 
 
-    def forward(self, x, time_encoding):
+    def forward(self, x, time_encoding, skip_connection):
+
         time_scale = self.time_scale(time_encoding).unsqueeze(-1).unsqueeze(-1)
         time_shift = self.time_shift(time_encoding).unsqueeze(-1).unsqueeze(-1)
 
         time_scale = self.activation(time_scale)
         time_shift = self.activation(time_shift)
+
+        x = torch.cat([x, skip_connection], dim = 1)
 
         
         x = self.conv(x)
@@ -68,32 +82,36 @@ class ConvolutionalBlockTranspose(torch.nn.Module):
     
     
 class MNISTAutoencoder(torch.nn.Module):
-    def __init__(self, latent_dim, time_encoding_dim = 4):
+    def __init__(self, latent_dim, time_encoding_dim = 128):
         super(MNISTAutoencoder, self).__init__()
         
         self.encoder_conv = torch.nn.ModuleList([
-            ConvolutionalBlock(1, 32, time_encoding_dim),
+            ConvolutionalBlock(3, 32, time_encoding_dim),
             ConvolutionalBlock(32, 64, time_encoding_dim),
-            ConvolutionalBlock(64, 64, time_encoding_dim, downsample = False),
+            ConvolutionalBlock(64, 128, time_encoding_dim),
+            ConvolutionalBlock(128, 256, time_encoding_dim),
+            ConvolutionalBlock(256, 512, time_encoding_dim),
+            ConvolutionalBlock(512, 1024, time_encoding_dim),
         ])
 
         self.dense = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(64 * 7 * 7, latent_dim * 4),
-            torch.nn.ReLU(),
-            torch.nn.Linear(latent_dim * 4, latent_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(latent_dim, latent_dim * 4),
-            torch.nn.ReLU(),
-            torch.nn.Linear(latent_dim * 4, 64 * 7 * 7),
-            torch.nn.ReLU(),
-            torch.nn.Unflatten(1, (64, 7, 7)),
+            torch.nn.SiLU(),
+            torch.nn.Linear(1024 * 1 * 1, latent_dim),
+            torch.nn.SiLU(),
+            torch.nn.Linear(latent_dim, 1024 * 1 * 1),
+            torch.nn.SiLU(),
+            torch.nn.Unflatten(1, (1024, 1, 1))
         )
 
+
         self.decoder_conv = torch.nn.ModuleList([
-            ConvolutionalBlockTranspose(64, 64, time_encoding_dim, upsample = False),
-            ConvolutionalBlockTranspose(64, 32, time_encoding_dim),
-            ConvolutionalBlockTranspose(32, 1, time_encoding_dim)
+            ConvolutionalBlockTranspose(1024, 512, time_encoding_dim, skip_connection_channels = 1024),
+            ConvolutionalBlockTranspose(512, 256, time_encoding_dim, skip_connection_channels = 512),
+            ConvolutionalBlockTranspose(256, 128, time_encoding_dim, skip_connection_channels = 256),
+            ConvolutionalBlockTranspose(128, 64, time_encoding_dim, skip_connection_channels = 128),
+            ConvolutionalBlockTranspose(64, 32, time_encoding_dim, skip_connection_channels = 64),
+            ConvolutionalBlockTranspose(32, 3, time_encoding_dim, skip_connection_channels = 32)
 
         ])
 
@@ -116,25 +134,27 @@ class MNISTAutoencoder(torch.nn.Module):
         
         out = torch.cat([sin, cos], dim = 1)
         return out
-
+    
     def forward(self, x, t):
-        t = self.time_encoding(t)
-        t = self.time_mlp(t)
-        
+        time_encoding = self.time_encoding(t)
+        time_encoding = self.time_mlp(time_encoding)
 
-        for layer in self.encoder_conv:
-            x = layer(x, t)
+        skip_connections = []
+        for idx, conv in enumerate(self.encoder_conv):
+            x = conv(x, time_encoding)
+            skip_connections.append(x.clone())
 
         x = self.dense(x)
 
-        for layer in self.decoder_conv:
-            x = layer(x, t)
+        for idx, conv in enumerate(self.decoder_conv):
+            x = conv(x, time_encoding, skip_connections[-(idx + 1)])
 
         return x
 
 
+
 class MNISTDiffusionAutoencoder(MNISTAutoencoder):
-    def __init__(self, latent_dim = 2, time_encoding_dim = 2, beta_min = 0.001, beta_max = 0.02, steps = 1000):
+    def __init__(self, latent_dim = 128, time_encoding_dim = 128, beta_min = 0.001, beta_max = 0.02, steps = 1000):
         super(MNISTDiffusionAutoencoder, self).__init__(latent_dim = latent_dim, time_encoding_dim = time_encoding_dim)
 
         self.steps = steps
@@ -163,10 +183,7 @@ class MNISTDiffusionAutoencoder(MNISTAutoencoder):
         t = t.to(self.device)
         x_t = torch.sqrt(self.alpha_hat[t].reshape(-1, 1, 1, 1)) * x + torch.sqrt(1 - self.alpha_hat[t].reshape(-1, 1, 1, 1)) * noise
         output = self(x_t, t)
-        if self.reconstructing_noise:
-            loss = self.loss_fn(output, noise)
-        else:
-            loss = self.loss_fn(output, x)
+        loss = self.loss_fn(output, x)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -175,26 +192,22 @@ class MNISTDiffusionAutoencoder(MNISTAutoencoder):
 
     def sample(self, x = None, T = None):
         if x is None:
-            x = torch.randn((1, 1, 28, 28)).to(self.device)
+            x = torch.randn((1, 3, 64, 64)).to(self.device)
         if T is None:
             T = self.steps - 1
         print("Sampling...")
         for t in tqdm.tqdm(range(T - 1, 0, -1)):
             t = torch.tensor([t]).to(self.device)
-            if self.reconstructing_noise:
-                recon_noise = self(x, t)
-            else:
-                recon_x = self(x, t)
-                recon_noise  = x - recon_x
+
+            recon_x = self(x, t)
+            recon_noise  = x - recon_x
             mu = 1 / torch.sqrt(self.alpha[t]) * (x - (1 - self.alpha[t]) / torch.sqrt(1 - self.alpha_hat[t] + 1e-5) * recon_noise)
             sigma = torch.sqrt(self.beta[t])
             x = mu + sigma * torch.randn_like(x)
             #x = torch.clamp(x, -3, 3)
-        if self.reconstructing_noise:
-            recon_noise = self(x, torch.tensor([0]).to(self.device)).to(self.device)
-        else:
-            recon_x = self(x, torch.tensor([0]).to(self.device)).to(self.device)
-            recon_noise  = x - recon_x
+
+        recon_x = self(x, torch.tensor([0]).to(self.device)).to(self.device)
+        recon_noise  = x - recon_x
         x = 1 / torch.sqrt(self.alpha[0]) * (x - (1 - self.alpha[0]) / torch.sqrt(1 - self.alpha_hat[0] + 1e-5) * recon_noise)
         #x = torch.clamp(x, -3, 3)
         return x

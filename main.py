@@ -15,15 +15,15 @@ def main():
         transforms.Normalize((0.1307,), (0.3081,)),
         ])
     
-    epochs = 250
+    epochs = 18
     
-    train_dataset = datasets.DatasetFolder("./cats", transform = transform)
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers = 4)
+    train_dataset = datasets.ImageFolder("./cats", transform = transform)
+    train_loader = DataLoader(train_dataset, batch_size = 64, shuffle=True, num_workers = 4)
 
 
 
     
-    model = MNISTDiffusionAutoencoder(latent_dim = 8, time_encoding_dim = 128, steps = 1000)
+    model = MNISTDiffusionAutoencoder(latent_dim = 256, time_encoding_dim = 128, steps = 1000)
     for epoch in range(epochs):
         model.train()
         loss = 0
