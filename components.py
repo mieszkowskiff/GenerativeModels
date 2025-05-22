@@ -3,7 +3,7 @@ import math
 import tqdm
 
 class ConvolutionalBlock(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, time_encoding_dim = 4, downsample = True):
+    def __init__(self, in_channels, out_channels, time_encoding_dim = 128, downsample = True):
         super(ConvolutionalBlock, self).__init__()
         self.downsample = downsample
         if downsample:
@@ -36,13 +36,24 @@ class ConvolutionalBlock(torch.nn.Module):
     
 
 class ConvolutionalBlockTranspose(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, time_encoding_dim = 4, upsample = True):
+    def __init__(self, in_channels, out_channels, time_encoding_dim = 128, upsample = True, skip_connection_channels = 0):
         super(ConvolutionalBlockTranspose, self).__init__()
         self.upsample = upsample
         if upsample:
-            self.conv = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = 4, stride = 2, padding = 1)
+            self.conv = torch.nn.ConvTranspose2d(
+                in_channels + skip_connection_channels, 
+                out_channels, 
+                kernel_size = 4,
+                stride = 2, 
+                padding = 1
+                )
         else:
-            self.conv = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = 3, padding = 1)
+            self.conv = torch.nn.ConvTranspose2d(
+                in_channels + skip_connection_channels, 
+                out_channels, 
+                kernel_size = 3, 
+                padding = 1
+                )
         self.gn = torch.nn.GroupNorm(1, out_channels)
         self.time_scale = torch.nn.Linear(time_encoding_dim, out_channels)
         self.time_shift = torch.nn.Linear(time_encoding_dim, out_channels)
@@ -50,12 +61,15 @@ class ConvolutionalBlockTranspose(torch.nn.Module):
         self.activation = torch.nn.SiLU()
 
 
-    def forward(self, x, time_encoding):
+    def forward(self, x, time_encoding, skip_connection):
+
         time_scale = self.time_scale(time_encoding).unsqueeze(-1).unsqueeze(-1)
         time_shift = self.time_shift(time_encoding).unsqueeze(-1).unsqueeze(-1)
 
         time_scale = self.activation(time_scale)
         time_shift = self.activation(time_shift)
+
+        x = torch.cat([x, skip_connection], dim = 1)
 
         
         x = self.conv(x)
@@ -74,26 +88,24 @@ class MNISTAutoencoder(torch.nn.Module):
         self.encoder_conv = torch.nn.ModuleList([
             ConvolutionalBlock(1, 32, time_encoding_dim),
             ConvolutionalBlock(32, 64, time_encoding_dim),
-            ConvolutionalBlock(64, 64, time_encoding_dim, downsample = False),
+            #ConvolutionalBlock(64, 128, time_encoding_dim, downsample = False),
         ])
 
         self.dense = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(64 * 7 * 7, latent_dim * 4),
-            torch.nn.ReLU(),
-            torch.nn.Linear(latent_dim * 4, latent_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(latent_dim, latent_dim * 4),
-            torch.nn.ReLU(),
-            torch.nn.Linear(latent_dim * 4, 64 * 7 * 7),
-            torch.nn.ReLU(),
-            torch.nn.Unflatten(1, (64, 7, 7)),
+            torch.nn.SiLU(),
+            torch.nn.Linear(64 * 7 * 7, latent_dim),
+            torch.nn.SiLU(),
+            torch.nn.Linear(latent_dim, 64 * 7 * 7),
+            torch.nn.SiLU(),
+            torch.nn.Unflatten(1, (64, 7, 7))
         )
 
+
         self.decoder_conv = torch.nn.ModuleList([
-            ConvolutionalBlockTranspose(64, 64, time_encoding_dim, upsample = False),
-            ConvolutionalBlockTranspose(64, 32, time_encoding_dim),
-            ConvolutionalBlockTranspose(32, 1, time_encoding_dim)
+            #ConvolutionalBlockTranspose(128, 64, time_encoding_dim, upsample = False, skip_connection_channels = 128),
+            ConvolutionalBlockTranspose(64, 32, time_encoding_dim, skip_connection_channels = 64),
+            ConvolutionalBlockTranspose(32, 1, time_encoding_dim, skip_connection_channels = 32)
 
         ])
 
@@ -116,21 +128,23 @@ class MNISTAutoencoder(torch.nn.Module):
         
         out = torch.cat([sin, cos], dim = 1)
         return out
-
+    
     def forward(self, x, t):
-        t = self.time_encoding(t)
-        t = self.time_mlp(t)
-        
+        time_encoding = self.time_encoding(t)
+        time_encoding = self.time_mlp(time_encoding)
 
-        for layer in self.encoder_conv:
-            x = layer(x, t)
+        skip_connections = []
+        for idx, conv in enumerate(self.encoder_conv):
+            x = conv(x, time_encoding)
+            skip_connections.append(x.clone())
 
         x = self.dense(x)
 
-        for layer in self.decoder_conv:
-            x = layer(x, t)
+        for idx, conv in enumerate(self.decoder_conv):
+            x = conv(x, time_encoding, skip_connections[-(idx + 1)])
 
         return x
+
 
 
 class MNISTDiffusionAutoencoder(MNISTAutoencoder):
