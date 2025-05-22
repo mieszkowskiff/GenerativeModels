@@ -3,9 +3,13 @@ import math
 import tqdm
 
 class ConvolutionalBlock(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, time_encoding_dim = 4):
+    def __init__(self, in_channels, out_channels, time_encoding_dim = 4, downsample = True):
         super(ConvolutionalBlock, self).__init__()
-        self.conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size = 4, stride = 2, padding = 1)
+        self.downsample = downsample
+        if downsample:
+            self.conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size = 4, stride = 2, padding = 1)
+        else:
+            self.conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size = 3, padding = 1)
         self.gn = torch.nn.GroupNorm(1, out_channels)
         self.time_scale = torch.nn.Linear(time_encoding_dim, out_channels)
         self.time_shift = torch.nn.Linear(time_encoding_dim, out_channels)
@@ -32,9 +36,13 @@ class ConvolutionalBlock(torch.nn.Module):
     
 
 class ConvolutionalBlockTranspose(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, time_encoding_dim = 4):
+    def __init__(self, in_channels, out_channels, time_encoding_dim = 4, upsample = True):
         super(ConvolutionalBlockTranspose, self).__init__()
-        self.conv = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = 4, stride = 2, padding = 1)
+        self.upsample = upsample
+        if upsample:
+            self.conv = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = 4, stride = 2, padding = 1)
+        else:
+            self.conv = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = 3, padding = 1)
         self.gn = torch.nn.GroupNorm(1, out_channels)
         self.time_scale = torch.nn.Linear(time_encoding_dim, out_channels)
         self.time_shift = torch.nn.Linear(time_encoding_dim, out_channels)
@@ -66,25 +74,27 @@ class MNISTAutoencoder(torch.nn.Module):
         self.encoder_conv = torch.nn.ModuleList([
             ConvolutionalBlock(1, 32, time_encoding_dim),
             ConvolutionalBlock(32, 64, time_encoding_dim),
-            
+            ConvolutionalBlock(64, 64, time_encoding_dim, downsample = False),
         ])
 
         self.dense = torch.nn.Sequential(
             torch.nn.Flatten(),
             torch.nn.Linear(64 * 7 * 7, latent_dim * 4),
             torch.nn.ReLU(),
-            # torch.nn.Linear(latent_dim * 4, latent_dim),
-            # torch.nn.ReLU(),
-            # torch.nn.Linear(latent_dim, latent_dim * 4),
-            # torch.nn.ReLU(),
+            torch.nn.Linear(latent_dim * 4, latent_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(latent_dim, latent_dim * 4),
+            torch.nn.ReLU(),
             torch.nn.Linear(latent_dim * 4, 64 * 7 * 7),
             torch.nn.ReLU(),
             torch.nn.Unflatten(1, (64, 7, 7)),
         )
 
         self.decoder_conv = torch.nn.ModuleList([
+            ConvolutionalBlockTranspose(64, 64, time_encoding_dim, upsample = False),
             ConvolutionalBlockTranspose(64, 32, time_encoding_dim),
             ConvolutionalBlockTranspose(32, 1, time_encoding_dim)
+
         ])
 
         self.latent_dim = latent_dim
@@ -142,6 +152,8 @@ class MNISTDiffusionAutoencoder(MNISTAutoencoder):
         self.alpha_hat = self.alpha_hat.to(self.device)
         self.alpha = self.alpha.to(self.device)
 
+        self.reconstructing_noise = False
+
 
     def train_step(self, x, t = None):
         x = x.to(self.device)
@@ -151,7 +163,10 @@ class MNISTDiffusionAutoencoder(MNISTAutoencoder):
         t = t.to(self.device)
         x_t = torch.sqrt(self.alpha_hat[t].reshape(-1, 1, 1, 1)) * x + torch.sqrt(1 - self.alpha_hat[t].reshape(-1, 1, 1, 1)) * noise
         output = self(x_t, t)
-        loss = self.loss_fn(output, x)
+        if self.reconstructing_noise:
+            loss = self.loss_fn(output, noise)
+        else:
+            loss = self.loss_fn(output, x)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -166,15 +181,20 @@ class MNISTDiffusionAutoencoder(MNISTAutoencoder):
         print("Sampling...")
         for t in tqdm.tqdm(range(T - 1, 0, -1)):
             t = torch.tensor([t]).to(self.device)
-            recon_x = self(x, t)
-            recon_noise  = x - recon_x
+            if self.reconstructing_noise:
+                recon_noise = self(x, t)
+            else:
+                recon_x = self(x, t)
+                recon_noise  = x - recon_x
             mu = 1 / torch.sqrt(self.alpha[t]) * (x - (1 - self.alpha[t]) / torch.sqrt(1 - self.alpha_hat[t] + 1e-5) * recon_noise)
             sigma = torch.sqrt(self.beta[t])
             x = mu + sigma * torch.randn_like(x)
             #x = torch.clamp(x, -3, 3)
-
-        recon_x = self(x, torch.tensor([0]).to(self.device)).to(self.device)
-        recon_noise  = x - recon_x
+        if self.reconstructing_noise:
+            recon_noise = self(x, torch.tensor([0]).to(self.device)).to(self.device)
+        else:
+            recon_x = self(x, torch.tensor([0]).to(self.device)).to(self.device)
+            recon_noise  = x - recon_x
         x = 1 / torch.sqrt(self.alpha[0]) * (x - (1 - self.alpha[0]) / torch.sqrt(1 - self.alpha_hat[0] + 1e-5) * recon_noise)
         #x = torch.clamp(x, -3, 3)
         return x
