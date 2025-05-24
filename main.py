@@ -15,7 +15,7 @@ def main():
         transforms.Normalize((0.1307,), (0.3081,)),
         ])
     
-    epochs = 40
+    epochs = 20
     
     train_dataset = datasets.MNIST(root='./data', train = True, download = True, transform = transform)
 
@@ -27,7 +27,7 @@ def main():
 
     
     train_loader = DataLoader(subset, batch_size = 64, shuffle = True)
-    model = MNISTDiffusionAutoencoder(latent_dim = 16, time_encoding_dim = 128, steps = 1000)
+    model = MNISTDiffusionAutoencoder(latent_dim = 2, time_encoding_dim = 16, steps = 10)
     for epoch in range(epochs):
         model.train()
         loss = 0
