@@ -8,22 +8,23 @@ import utils
 
 
 def main():
-    torch.manual_seed(42)
+    torch.manual_seed(13)
 
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,)),
+        transforms.Normalize([0.4837, 0.4360, 0.3871], [0.1994, 0.1982, 0.1976]),
         ])
     
-    epochs = 100
+    epochs = 20
     
     train_dataset = datasets.ImageFolder("./cats", transform = transform)
-    train_loader = DataLoader(train_dataset, batch_size = 64, shuffle=True, num_workers = 4)
+    train_loader = DataLoader(train_dataset, batch_size = 64, shuffle = True, num_workers = 4)
 
 
 
     
-    model = DiffusionAutoencoder(latent_dim = 256, time_encoding_dim = 128, steps = 1000)
+    model = DiffusionAutoencoder(latent_dim = 256, time_encoding_dim = 16, steps = 1000)
+
     for epoch in range(epochs):
         model.train()
         loss = 0
