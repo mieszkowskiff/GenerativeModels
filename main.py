@@ -15,15 +15,15 @@ def main():
         transforms.Normalize([0.4837, 0.4360, 0.3871], [0.1994, 0.1982, 0.1976]),
         ])
     
-    epochs = 20
+    epochs = 100
     
     train_dataset = datasets.ImageFolder("./cats", transform = transform)
-    train_loader = DataLoader(train_dataset, batch_size = 64, shuffle = True, num_workers = 4)
+    train_loader = DataLoader(train_dataset, batch_size = 512, shuffle = True, num_workers = 4)
 
 
 
     
-    model = DiffusionAutoencoder(latent_dim = 256, time_encoding_dim = 16, steps = 1000)
+    model = DiffusionAutoencoder(latent_dim = 128, time_encoding_dim = 128, steps = 1000)
 
     for epoch in range(epochs):
         model.train()

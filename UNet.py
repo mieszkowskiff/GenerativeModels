@@ -111,8 +111,7 @@ class UNet(torch.nn.Module):
             ConvolutionalBlockTranspose(256, 128, time_encoding_dim, skip_connection_channels = 256),
             ConvolutionalBlockTranspose(128, 64, time_encoding_dim, skip_connection_channels = 128),
             ConvolutionalBlockTranspose(64, 32, time_encoding_dim, skip_connection_channels = 64),
-            ConvolutionalBlockTranspose(32, 3, time_encoding_dim, skip_connection_channels = 32)
-
+            ConvolutionalBlockTranspose(32, 3, time_encoding_dim, skip_connection_channels = 32),
         ])
 
         self.latent_dim = latent_dim
@@ -124,6 +123,8 @@ class UNet(torch.nn.Module):
             torch.nn.Linear(time_encoding_dim * 4, time_encoding_dim),
             torch.nn.SiLU(),
         )
+
+        self.final_activation = torch.nn.Tanh()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
@@ -149,4 +150,4 @@ class UNet(torch.nn.Module):
         for idx, conv in enumerate(self.decoder_conv):
             x = conv(x, time_encoding, skip_connections[-(idx + 1)])
 
-        return x
+        return 3 * self.final_activation(x)

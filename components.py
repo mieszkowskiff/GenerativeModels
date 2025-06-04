@@ -1,24 +1,24 @@
 import torch
 import math
 import tqdm
-from transformer import DiffusionTransformer
+#from transformer import DiffusionTransformer
 from UNet import UNet
 
 
 
-class DiffusionAutoencoder(DiffusionTransformer):
+class DiffusionAutoencoder(UNet):
     def __init__(self, latent_dim = 128, time_encoding_dim = 128, beta_min = 0.001, beta_max = 0.02, steps = 1000):
-        #super(DiffusionAutoencoder, self).__init__(latent_dim = latent_dim, time_encoding_dim = time_encoding_dim)
-        super(DiffusionAutoencoder, self).__init__(
-            d_embedding = latent_dim, 
-            time_encoding_dim = time_encoding_dim,
-            patch_size = 8,
-            time_range = steps,
-            n_transformer_blocks = 4,
-            n_heads = 4,
-            d_attention_hidden = latent_dim,
-            d_ffn_hidden = latent_dim,
-        )
+        super(DiffusionAutoencoder, self).__init__(latent_dim = latent_dim, time_encoding_dim = time_encoding_dim)
+        # super(DiffusionAutoencoder, self).__init__(
+        #     d_embedding = latent_dim, 
+        #     time_encoding_dim = time_encoding_dim,
+        #     patch_size = 8,
+        #     time_range = steps,
+        #     n_transformer_blocks = 4,
+        #     n_heads = 4,
+        #     d_attention_hidden = latent_dim,
+        #     d_ffn_hidden = latent_dim,
+        # )
 
         self.steps = steps
 
@@ -35,7 +35,7 @@ class DiffusionAutoencoder(DiffusionTransformer):
         self.alpha_hat = self.alpha_hat.to(self.device)
         self.alpha = self.alpha.to(self.device)
 
-        self.reconstructing_noise = False
+        self.reconstructing_noise = True
 
 
     def train_step(self, x, t = None):
