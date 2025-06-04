@@ -8,17 +8,17 @@ import utils
 
 
 def main():
-    torch.manual_seed(13)
+    torch.manual_seed(14)
 
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize([0.4837, 0.4360, 0.3871], [0.1994, 0.1982, 0.1976]),
+        transforms.Normalize((0.4837, 0.4360, 0.3871), (.1994, 0.1982, 0.1976)),
         ])
     
     epochs = 100
     
     train_dataset = datasets.ImageFolder("./cats", transform = transform)
-    train_loader = DataLoader(train_dataset, batch_size = 512, shuffle = True, num_workers = 4)
+    train_loader = DataLoader(train_dataset, batch_size = 64, shuffle = True, num_workers = 4)
 
 
 

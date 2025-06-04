@@ -97,9 +97,13 @@ class UNet(torch.nn.Module):
         self.dense = torch.nn.Sequential(
             torch.nn.Flatten(),
             torch.nn.SiLU(),
-            torch.nn.Linear(1024 * 1 * 1, latent_dim),
+            torch.nn.Linear(1024 * 1 * 1, latent_dim * 4),
             torch.nn.SiLU(),
-            torch.nn.Linear(latent_dim, 1024 * 1 * 1),
+            torch.nn.Linear(latent_dim * 4, latent_dim),
+            torch.nn.SiLU(),
+            torch.nn.Linear(latent_dim, latent_dim * 4),
+            torch.nn.SiLU(),
+            torch.nn.Linear(latent_dim * 4, 1024 * 1 * 1),
             torch.nn.SiLU(),
             torch.nn.Unflatten(1, (1024, 1, 1))
         )
@@ -150,4 +154,4 @@ class UNet(torch.nn.Module):
         for idx, conv in enumerate(self.decoder_conv):
             x = conv(x, time_encoding, skip_connections[-(idx + 1)])
 
-        return 3 * self.final_activation(x)
+        return x
