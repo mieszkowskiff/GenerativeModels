@@ -160,7 +160,7 @@ class MNISTDiffusionAutoencoder(MNISTAutoencoder):
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
 
-        self.loss_fn = torch.nn.MSELoss()
+        self.loss_fn = torch.nn.MSELoss(reduction="mean")
 
         self.beta = self.beta.to(self.device)
         self.alpha_hat = self.alpha_hat.to(self.device)

@@ -19,7 +19,7 @@ def main():
     
     train_dataset = datasets.MNIST(root='./data', train = True, download = True, transform = transform)
 
-    indices = [i for i, (_, label) in enumerate(train_dataset) if label == 7]
+    indices = [i for i, (_, label) in enumerate(train_dataset) if label == 9]
 
     #Utwórz podzbiór tylko z siódemkami
     subset = Subset(train_dataset, indices)
@@ -27,7 +27,7 @@ def main():
 
     
     train_loader = DataLoader(subset, batch_size = 64, shuffle = True)
-    model = MNISTDiffusionAutoencoder(latent_dim = 2, time_encoding_dim = 16, steps = 10)
+    model = MNISTDiffusionAutoencoder(latent_dim = 8, time_encoding_dim = 8, steps = 1000)
     for epoch in range(epochs):
         model.train()
         loss = 0
