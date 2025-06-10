@@ -6,7 +6,7 @@ from utils import display
 
 def main():
 
-    latent_dim = 256
+    latent_dim = 128
     torch.manual_seed(10)
 
     transform = transforms.Compose([
@@ -24,7 +24,7 @@ def main():
         decoder=components.Decoder(latent_dim = latent_dim)
     )
 
-    model.load_state_dict(torch.load("./models/AutoEncoders/autoencoder256.pth"))
+    model.load_state_dict(torch.load("./models/AutoEncoders/autoencoder128_1.pth"))
 
     model.to(device)
 
@@ -34,12 +34,12 @@ def main():
 
     model.eval()
 
-    with torch.no_grad():
-        for i in range(5):
-            img = dataloader.dataset[torch.randint(0, 1200, (1,))][0].unsqueeze(0).to(device)
-            reconstructed, z = model(img)
-            display(img)
-            display(reconstructed)
+    # with torch.no_grad():
+    #     for i in range(5):
+    #         img = dataloader.dataset[torch.randint(0, 1200, (1,))][0].unsqueeze(0).to(device)
+    #         reconstructed, z = model(img)
+    #         display(img)
+    #         display(reconstructed)
 
     zs = torch.tensor([])
     encoder.eval()
@@ -48,12 +48,10 @@ def main():
             data = data.to(device)
             z = encoder(data)
             zs = torch.cat((zs, z.to("cpu")), dim=0)
-    mean = zs.mean(dim=0)  # shape: [256]
+    mean = zs.mean(dim=0)
 
-    # 2. Centrowanie danych
     mus_centered = zs - mean
 
-    # 3. Macierz kowariancji próbkowej
     N = zs.shape[0]
     cov = (mus_centered.T @ mus_centered) / (N - 1)
 
