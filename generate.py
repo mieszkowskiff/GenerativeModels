@@ -1,12 +1,12 @@
 import torch
 import VAE_components
 import tqdm
-from utils import display
+from torchvision import utils
 
 
 
 def main():
-    torch.manual_seed(453)
+    torch.manual_seed(7845)
 
 
     latent_dim = 256
@@ -25,17 +25,25 @@ def main():
     encoder = model.encoder
     decoder = model.decoder
 
-    z1 = torch.randn(latent_dim).to(device)
-    z2 = torch.randn(latent_dim).to(device)
-    num_samples = 8
+
     decoder.to(device)
     with torch.no_grad():
-        for i in range(num_samples):
+        for i in range(100):
 
-            t = i / (num_samples - 1)
-            z = (1 - t) * z1 + t * z2
+            e = torch.randn(latent_dim).to(device)
+            z = e
             z = z.view(-1, latent_dim)
-            display(decoder(z))
+            img = decoder(z)
+            img = img.reshape((3, 64, 64))
+            utils.save_image(
+                img,
+                f"./generated/VAE/{i:04d}.png",
+                normalize = True,
+                value_range = (-1, 1)
+            )
+
+
+            
 
             
 
