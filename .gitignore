@@ -2,3 +2,13 @@ Data/
 .venv/
 dataset/
 __pycache__
+GAN_mnist_poc/
+GAN/mnist/
+GAN/samples/
+GAN/samples_7/
+GAN/models/
+GAN/training_data/
+results/
+tmp/
+GAN_mnist_xd/
+GAN_good/
