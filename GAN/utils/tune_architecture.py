@@ -70,7 +70,6 @@ class Discriminator(torch.nn.Module):
         )
         
 
-        # deeper conv blocks
         self.down1 = components.Module(
             conv_blocks_number=0,
             in_channels=128,
@@ -102,21 +101,18 @@ class Discriminator(torch.nn.Module):
             dropout=False
         )
 
-        # global pooling + classifier
         self.gap = torch.nn.AdaptiveAvgPool2d((1, 1))
 
         self.classifier = torch.nn.Linear(512, 1)
 
     def features(self, x):
-        # run through all conv blocks
         x = self.init_block(x)
         x = self.down0(x)
         x = self.down1(x)
         x = self.down2(x)
         x = self.down3(x)
-        # global‐average‐pool and flatten
-        x = self.gap(x)                # [B,512,1,1]
-        return torch.flatten(x, 1)     # → [B,512]
+        x = self.gap(x)
+        return torch.flatten(x, 1)
 
     def forward(self, x):
         x = self.init_block(x)

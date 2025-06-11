@@ -20,10 +20,16 @@ class InitBlock(torch.nn.Module):
         return torch.nn.functional.relu(x, inplace = True)
 
 class ConvolutionalBlock(torch.nn.Module):
-    def __init__(self, in_channels = 32, out_channels = 32, bypass = False, batch_norm = False): 
+    def __init__(self, in_channels = 32, 
+                 out_channels = 32, 
+                 bypass = False, 
+                 batch_norm = False,
+                 activation = 'relu'
+                 ): 
         super(ConvolutionalBlock, self).__init__()
         self.bypass = bypass
         self.batch_norm = batch_norm
+        self.activation = activation
         if(self.batch_norm):
             self.block = torch.nn.Sequential(
                 torch.nn.Conv2d(in_channels, out_channels, kernel_size = 3, stride = 1, padding = 1),
@@ -36,37 +42,73 @@ class ConvolutionalBlock(torch.nn.Module):
 
     def forward(self, x):
         y = self.block(x)
+        if self.activation == 'tanh':
+            if self.bypass:
+                return torch.nn.functional.tanh(x + y)
+            return torch.nn.functional.tanh(y)
         if self.bypass:
             return torch.nn.functional.relu(x + y, inplace = True)
         return torch.nn.functional.relu(y, inplace = True)
-    
+        
+
 class TransposedConvolutionalBlock(torch.nn.Module):
-    def __init__(self, in_channels = 32, 
-                 out_channels = 32, 
-                 kernel_size = 3, 
-                 stride = 1, 
-                 padding = 1,                  
-                 batch_norm = False, 
-                 activation = 'relu'): 
+    def __init__(self, in_channels=32, 
+                 out_channels=32, 
+                 kernel_size=3, 
+                 stride=1, 
+                 padding=1,                  
+                 batch_norm=False, 
+                 activation='relu',
+                 use_residual=True):  # NEW
         super(TransposedConvolutionalBlock, self).__init__()
+        self.use_residual = use_residual
         self.batch_norm = batch_norm
         self.activation = activation
-        if(self.batch_norm):
-            self.block = torch.nn.Sequential(
-                torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = kernel_size, stride = stride, padding = padding),
-                torch.nn.BatchNorm2d(out_channels, affine=True) 
-            )        
-        else:
-            self.block = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size = kernel_size, stride = stride, padding = padding)
-            )
+
+        layers = [torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding)]
+        if self.batch_norm:
+            layers.append(torch.nn.BatchNorm2d(out_channels, affine=True))
+        self.block = torch.nn.Sequential(*layers)
+
+        # If shapes differ, prepare a 1x1 conv to align residual connection
+        self.shortcut = None
+        if use_residual and (in_channels != out_channels or stride != 1):
+            self.shortcut = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size=1, stride=stride, padding=0)
 
     def forward(self, x):
+        residual = x
         y = self.block(x)
+
+        if self.use_residual:
+            if self.shortcut:
+                residual = self.shortcut(residual)
+            
+            if residual.shape != y.shape:
+                diff_y = y.size(2) - residual.size(2)
+                diff_x = y.size(3) - residual.size(3)
+
+                residual = torch.nn.functional.pad(residual, 
+                    [diff_x // 2, diff_x - diff_x // 2,
+                    diff_y // 2, diff_y - diff_y // 2])
+            
+            y = y + residual
+
         if self.activation == 'tanh':
-            return torch.nn.functional.tanh(y)    
-        return torch.nn.functional.relu(y, inplace = True)
+            return torch.tanh(y)
+        elif self.activation == 'relu':
+            return torch.relu(y)
+        return torch.nn.functional.leaky_relu(y, inplace=True)
     
+class NoiseInjection(torch.nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.ones(1, channels, 1, 1))
+
+    def forward(self, x):
+        batch, _, height, width = x.shape
+        noise = torch.randn(batch, 1, height, width, device=x.device)
+        return x + self.weight * noise
+
 class Module(torch.nn.Module):
     def __init__(self, 
                 conv_blocks_number, 
@@ -103,7 +145,8 @@ class Module(torch.nn.Module):
         self.conv_out = ConvolutionalBlock(
                     in_channels = internal_channels, 
                     out_channels = out_channels,
-                    bypass = False,
+                    # this was set to always False
+                    bypass = bypass,
                     batch_norm = batch_norm
                 )
         
@@ -113,7 +156,7 @@ class Module(torch.nn.Module):
 
         self.dropout = dropout
         if(dropout):
-            self.dropout_layer = torch.nn.Dropout2d(0.1)
+            self.dropout_layer = torch.nn.Dropout2d(0.2)
 
     def forward(self, x):
         x = self.conv_in(x)
