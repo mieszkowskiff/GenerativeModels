@@ -28,7 +28,7 @@ def main():
 
     decoder.to(device)
     with torch.no_grad():
-        for i in range(100):
+        for i in range(1000):
 
             e = torch.randn(latent_dim).to(device)
             z = e
