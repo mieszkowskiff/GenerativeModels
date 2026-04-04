@@ -15,7 +15,7 @@ def main():
         transforms.Normalize((0.4837, 0.4360, 0.3871), (.1994, 0.1982, 0.1976)),
         ])
     
-    epochs = 100
+    epochs = 50
     
     train_dataset = datasets.ImageFolder("./cats", transform = transform)
     train_loader = DataLoader(train_dataset, batch_size = 64, shuffle = True, num_workers = 4)
@@ -32,11 +32,12 @@ def main():
             loss += model.train_step(x)
         print(f"Epoch {epoch + 1}, Loss: {loss}")
 
+    model.save("models/diffusion/diffusion_autoencoder.pth")
+
     model.eval()
     with torch.no_grad():
-        for i in range(10):
+        for i in range(100):
             recon = model.sample()
-            #print(recon)
             utils.display(recon)
 
 

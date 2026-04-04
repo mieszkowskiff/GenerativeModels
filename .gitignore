@@ -1,6 +1,9 @@
 data/
 .venv/
+venv/
 models/
 cats/
 __pycache__/
 *.pth
+*.png
+*.tar.gz
