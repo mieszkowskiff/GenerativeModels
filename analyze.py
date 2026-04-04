@@ -9,7 +9,7 @@ def main():
     torch.manual_seed(453)
 
 
-    latent_dim = 256
+    latent_dim = 64
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = VAE_components.VAE(
@@ -17,7 +17,7 @@ def main():
         decoder=VAE_components.Decoder(latent_dim = latent_dim)
     )
 
-    model.load_state_dict(torch.load(f"./models/VAEs/VAE{latent_dim}.pth"))
+    model.load_state_dict(torch.load(f"./models/VAEs/VAE.pth"))
 
     model.to(device)
 
