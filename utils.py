@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import torch
-from torchvision import transforms, datasets
 
 def denormalize(tensor, mean, std):
     mean = torch.tensor(mean).reshape(1, -1, 1, 1)

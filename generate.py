@@ -24,7 +24,7 @@ def main():
         decoder=components.Decoder(latent_dim = latent_dim)
     )
 
-    model.load_state_dict(torch.load("./models/AutoEncoders/autoencoder256.pth"))
+    model.load_state_dict(torch.load("./models/AutoEncoders/autoencoder.pth"))
 
     model.to(device)
 

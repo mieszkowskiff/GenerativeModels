@@ -6,11 +6,30 @@ This project is a part of 2024/2025 Summer Semester course in Deeplearning at Wa
 
 ## Dataset
 
-The dataset can be found [here](https://www.kaggle.com/datasets/borhanitrash/cat-dataset).
+The dataset can be found in several different places in the internet, but we recommend using `fferlito/Cat-faces-dataset` repository.
+To download it on linux:
+```bash
+wget https://github.com/fferlito/Cat-faces-dataset/raw/master/dataset-part1.tar.gz
+wget https://github.com/fferlito/Cat-faces-dataset/raw/master/dataset-part2.tar.gz
+wget https://github.com/fferlito/Cat-faces-dataset/raw/master/dataset-part3.tar.gz
+```
+Extract them to `cats/` directory:
+```bash
+mkdir -p cats/images
+tar -xzvf dataset-part1.tar.gz -C cats/images --strip-components=1
+tar -xzvf dataset-part2.tar.gz -C cats/images --strip-components=1
+tar -xzvf dataset-part3.tar.gz -C cats/images --strip-components=1
+```
 
 ## Dependencies
 
-```{bash}
-pip install torch torchvision matplotlib
+Linux
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install torch torchvision torchsummary matplotlib
 
 ```
+
+## Usage
+

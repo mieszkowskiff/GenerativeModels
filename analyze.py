@@ -24,7 +24,7 @@ def main():
         decoder=components.Decoder(latent_dim = latent_dim)
     )
 
-    model.load_state_dict(torch.load("./models/AutoEncoders/autoencoder128_1.pth"))
+    model.load_state_dict(torch.load("./models/AutoEncoders/autoencoder.pth"))
 
     model.to(device)
 
@@ -33,13 +33,6 @@ def main():
     decoder = model.decoder
 
     model.eval()
-
-    # with torch.no_grad():
-    #     for i in range(5):
-    #         img = dataloader.dataset[torch.randint(0, 1200, (1,))][0].unsqueeze(0).to(device)
-    #         reconstructed, z = model(img)
-    #         display(img)
-    #         display(reconstructed)
 
     zs = torch.tensor([])
     encoder.eval()

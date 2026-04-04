@@ -49,16 +49,6 @@ def main():
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
             optimizer.step()
-
-        # with torch.no_grad():
-        #     model.eval()
-        #     loss = 0
-        #     for data, _ in tqdm.tqdm(dataloader):
-        #         data = data.to(device)
-        #         recon_batch, z = model(data)
-        #         loss += criterion(recon_batch, data, z)
-        #     loss /= len(dataloader.dataset)
-        #     print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
     
     # Save the model
     torch.save(model.state_dict(), "./models/AutoEncoders/autoencoder.pth")
