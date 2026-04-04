@@ -1,3 +1,5 @@
+from xml.parsers.expat import model
+
 from components import DiffusionAutoencoder
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset
@@ -32,7 +34,7 @@ def main():
             loss += model.train_step(x)
         print(f"Epoch {epoch + 1}, Loss: {loss}")
 
-    model.save("models/diffusion/diffusion_autoencoder.pth")
+    torch.save(model.state_dict(), "models/Diffusion/diffusion_autoencoder.pth")
 
     model.eval()
     with torch.no_grad():

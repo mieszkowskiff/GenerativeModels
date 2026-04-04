@@ -7,3 +7,4 @@ __pycache__/
 *.pth
 *.png
 *.tar.gz
+!*_readme.png
