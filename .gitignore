@@ -1,2 +1,8 @@
 Data/
 .venv/
+venv/
+__pycache__/
+*.png
+!_readme.png
+*.pth
+*.tar.gz
