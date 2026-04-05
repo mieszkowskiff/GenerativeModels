@@ -3,6 +3,6 @@ Data/
 venv/
 __pycache__/
 *.png
-!_readme.png
+!*_readme.png
 *.pth
 *.tar.gz
