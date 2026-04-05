@@ -33,3 +33,10 @@ pip install torch torchvision torchsummary matplotlib
 
 ## Usage
 
+Three different architectures were used to generate images:
+* AutoEncoders
+* Variational AutoEncoders (VAEs)
+* Diffusion models
+for each type of model separe branch is created.
+
+## Results
