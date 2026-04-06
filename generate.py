@@ -42,19 +42,5 @@ def main():
                 value_range = (-1, 1)
             )
 
-
-            
-
-            
-
-
-
-
-
-        
-
-
-
-
 if __name__ == "__main__":
     main()
