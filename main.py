@@ -99,7 +99,7 @@ def main():
         )
     ])
 
-    train_dataset = ImageFolder(root='../dataset', transform=train_transform)
+    train_dataset = ImageFolder(root='./cats', transform=train_transform)
 
     train_loader = DataLoader(train_dataset, batch_size = batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
@@ -310,13 +310,13 @@ def main():
                     fakes = fakes.to(torch.float32)
                     fakes = (fakes * std_tensor + mean_tensor).clamp(0, 1)
                     grid = torchvision.utils.make_grid(fakes.cpu(), nrow=4)
-                    torchvision.utils.save_image(grid, f"./samples/epoch_{epoch}.png")
+                    torchvision.utils.save_image(grid, f"./generated/GAN/epoch_{epoch}.png")
                     
                     fakes = generator(fixed_z)
                     fakes = fakes.to(torch.float32)
                     fakes = (fakes * std_tensor + mean_tensor).clamp(0, 1)
                     grid = torchvision.utils.make_grid(fakes.cpu(), nrow=4)
-                    torchvision.utils.save_image(grid, f"./samples/epoch_fixed_{epoch}.png")
+                    torchvision.utils.save_image(grid, f"./generated/GAN/epoch_fixed_{epoch}.png")
 
                     var = fakes.var(dim=0).mean().item()
                     print(f"Image variance (diversity): {var:.4f}")
@@ -362,11 +362,11 @@ def main():
 
         print(f"Epoch {epoch + 1}\n Generator Training Loss: {generator_total_loss}\n Discriminator Training Loss: {discriminator_total_loss}\n Time: {end_time - start_time}s")
         print()
-        torch.save(copy.deepcopy(discriminator.state_dict()), f"./models/checkpoint/discriminator.pth")
-        torch.save(discriminator_optimizer.state_dict(), f"./models/checkpoint/d_optimizer.pth")
-        torch.save(copy.deepcopy(generator.state_dict()), f"./models/checkpoint/generator.pth")
-        torch.save(generator_optimizer.state_dict(), f"./models/checkpoint/g_optimizer.pth")
-    
-    
+        torch.save(copy.deepcopy(discriminator.state_dict()), f"./models/GAN/discriminator.pth")
+        torch.save(discriminator_optimizer.state_dict(), f"./models/GAN/d_optimizer.pth")
+        torch.save(copy.deepcopy(generator.state_dict()), f"./models/GAN/generator.pth")
+        torch.save(generator_optimizer.state_dict(), f"./models/GAN/g_optimizer.pth")
+
+
 if __name__ == "__main__":
     main()
