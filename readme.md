@@ -39,11 +39,12 @@ pip install torch torchvision torchsummary matplotlib
 
 ## Usage
 
-This project implements three different architectures for image generation:
+This project implements four different architectures for image generation:
 
   * Autoencoders
   * Variational Autoencoders (VAEs)
   * Diffusion Models
+  * GAN
 
 Each model architecture is maintained in a separate branch within this repository.
 
@@ -102,4 +103,11 @@ Below are samples of the generated images.
 <td\><img src="generated/Diffusion/diffusion2_readme.png" width="50" alt="Cat image"\></td\>
 <td\><img src="generated/Diffusion/diffusion3_readme.png" width="50" alt="Cat image"\></td\>
 </table\>
-</div\>
+</div>
+
+#### GAN
+
+<div align="center">
+<img src="generated/GAN/GAN0_readme.png" width="200" alt="Cat image"\>
+<img src="generated/GAN/GAN1_readme.png" width="200" alt="Cat image"\>
+</div>
