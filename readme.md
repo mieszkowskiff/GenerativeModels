@@ -45,6 +45,7 @@ First, create the necessary directory to store the trained model weights:
 
 ```bash
 mkdir -p models/Diffusion
+mkdir -p generated/Diffusion
 ```
 
 ### 2. Train the Model
