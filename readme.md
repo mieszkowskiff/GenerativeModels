@@ -44,7 +44,8 @@ pip install torch torchvision torchsummary matplotlib
 First, create the necessary directory to store the trained model weights:
 
 ```bash
-mkdir models/VAEs
+mkdir -p models/VAEs
+mkdir -p generated/VAEs
 ```
 
 ### 2. Train the Model
