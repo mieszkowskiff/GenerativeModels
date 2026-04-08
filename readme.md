@@ -44,7 +44,8 @@ pip install torch torchvision torchsummary matplotlib
 First, create the necessary directory to store the trained model weights:
 
 ```bash
-mkdir models/AutoEncoders
+mkdir -p models/AutoEncoders
+mkdir -p generated/AutoEncoder
 ```
 
 ### 2. Train the Model
